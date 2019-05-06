@@ -1,6 +1,17 @@
-# Target library
+objs := queue.o sem.o thread.o tps.o
 lib := libuthread.a
+CC := gcc
+CFLAGS := -Wall -Werror -g
+deps := $(patsubst %.o,%.d,$(objs)) 
+-include $(deps)
+DEPFLAGS = -MMD -MF $(@:.o=.d)
 
-all: $(lib)
+libuthread.a: $(objs)
+	ar rcs libuthread.a $(objs)
 
-## TODO: Phase 1 and Phase 2
+%.o: %.c         
+	$(Q)$(CC) $(CFLAGS) -c -o $@ $< $(DEPFLAGS)
+
+clean:
+	rm -f *.o *.a *.d *.gch
+	$(Q)rm -f $(targets) $(objs) $(deps)
