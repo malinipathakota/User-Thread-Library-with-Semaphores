@@ -12,31 +12,30 @@ struct semaphore {
 
 
 int sem_getvalue(sem_t sem, int *sval) {
+	if (sem->size > 0) {
+		*sval = sem->size;
+	}
+	if(sem == NULL) {
+		return -1;
+	} 
+	else {
+		*sval = (queue_length(sem->queue)) * -1;
+	}
 	return 0;
 }
 
 sem_t sem_create(size_t count) {
-	sem_t sem;
-	if(sem = (sem_t)malloc(sizeof(struct semaphore))) {
-		sem->queue = queue_create();
-		if(sem->queue == NULL) {
-			return NULL;
-		}
-		sem->size = count;	
-	}
-	else {
-		return NULL;
-	}
-	return sem;
+	sem_t mysem = (sem_t)malloc(sizeof(sem_t));
+	mysem->size = count;
+	mysem->queue = queue_create();
+
+	return mysem;
 }
 
 int sem_destroy(sem_t sem) {
-	enter_critical_section();
 	if (queue_length(sem->queue) != 0 || sem == NULL) {
-		exit_critical_section();
 		return -1;
 	}
-	exit_critical_section();
 	queue_destroy(sem->queue); 
 	free(sem);
 	return 0; 
@@ -44,22 +43,32 @@ int sem_destroy(sem_t sem) {
 
 int sem_down(sem_t sem) {
 	enter_critical_section();
-	if (sem == NULL) {
-		exit_critical_section();
+	if(sem == NULL) {
 		return -1;
 	}
-	while (sem->size == 0) {
+	while(sem->size == 0) {
 		pthread_t tid = pthread_self();
-		queue_enqueue(sem->queue, &tid);	
-		thread_block(); 	
+		queue_enqueue(sem->queue, (void*)tid);
+		thread_block();
 	}	
 	sem->size--;
-	
-	exit_critical_section();
+
+	exit_critical_section(); 
 	return 0;
 }
 
 int sem_up(sem_t sem) {
-	return 0; 
-}
+	enter_critical_section();
+	if(sem == NULL) {
+		return -1;
+	}
+	sem->size++;
+	pthread_t tid;
+	if(queue_length(sem->queue) > 0) { 
+		queue_dequeue(sem->queue, (void**)&tid);
+		thread_unblock(tid);
+	}	
 
+	exit_critical_section();
+	return 0;
+}
