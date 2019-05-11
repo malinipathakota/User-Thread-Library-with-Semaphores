@@ -1,6 +1,5 @@
 #include <stddef.h>
 #include <stdlib.h>
-
 #include "queue.h"
 #include "sem.h"
 #include "thread.h"
@@ -9,7 +8,6 @@ struct semaphore {
 	queue_t queue;
 	size_t size;
 };
-
 
 int sem_getvalue(sem_t sem, int *sval) {
 	if (sem->size > 0) {
@@ -63,8 +61,8 @@ int sem_up(sem_t sem) {
 		return -1;
 	}
 	sem->size++;
-	pthread_t tid;
 	if(queue_length(sem->queue) > 0) { 
+		pthread_t tid;
 		queue_dequeue(sem->queue, (void**)&tid);
 		thread_unblock(tid);
 	}	
