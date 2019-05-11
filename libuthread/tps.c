@@ -12,26 +12,61 @@
 #include "thread.h"
 #include "tps.h"
 
-/* TODO: Phase 2 */
+
+struct tps_node
+{
+	pthread_t thread;
+	void* memory_page;
+};
+
+typedef struct tps_node* tps_node_t;
+
+bool initialized = false;
+
+queue_t tps_queue;
 
 int tps_init(int segv)
 {
-	/* TODO: Phase 2 */
+	tps_queue = queue_create();
+	initialized = true;
+	return 0;
 }
 
 int tps_create(void)
 {
-	/* TODO: Phase 2 */
+	//add error cases
+	enter_critical_section();
+	tps_init();
+	tps_node_t new_node = (tps_node_t)malloc(sizeof(struct tps_node));
+	if(new_node == NULL)
+	{
+		return -1;
+		exit_critical_section();
+	}
+	new_node->thread = pthread_self();
+	//last two parameters??
+	new_node->memory_page = mmap(NULL, TPS_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0 , 0);
+	queue_enqueue(tps_queue, (void*)new_node);
+	exit_critical_section();
 }
 
 int tps_destroy(void)
 {
-	/* TODO: Phase 2 */
+	//do we free each node?
+	enter_critical_section();
+	if (queue_length(tps_queue) != 0){
+		exit_critical_section();
+		return -1;
+	}
+	exit_critical_section();
+	queue_destroy(tps_queue); 
+	return 0; 
 }
 
 int tps_read(size_t offset, size_t length, char *buffer)
 {
-	/* TODO: Phase 2 */
+	enter_critical_section();
+
 }
 
 int tps_write(size_t offset, size_t length, char *buffer)
