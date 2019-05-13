@@ -56,16 +56,18 @@ int tps_init(int segv)
 	{
 		return -1;
 	}
+
 	tps_queue = queue_create();
 	initialized = true;
+
 	if(segv)
 	{
 		struct sigaction sa;
 		sigemptyset(&sa.sa_mask);
 		sa.sa_flags = SA_SIGINFO;
 		sa.sa_sigaction = segv_handler;
-		sigacton(SIGBUS, &sa, NULL);
-		sigaction(SIGSEV, &sa, NULL);
+		sigaction(SIGBUS, &sa, NULL);
+		sigaction(SIGSEGV, &sa, NULL);
 	}
 	return 0;
 }
@@ -73,7 +75,8 @@ int tps_init(int segv)
 int tps_create(void)
 {
 	//add error cases
-	tps_init();
+	//if already created return -1
+	//
 	tps_node_t new_node = (tps_node_t)malloc(sizeof(struct tps_node));
 	if(new_node == NULL)
 	{
@@ -87,22 +90,29 @@ int tps_create(void)
 
 int tps_destroy(void)
 {
+	//add error cases
+	tps_node_t node_to_destroy;
 	pthread_t current_thread = pthread_self();
-	if (queue_length(tps_queue) != 0){
+	if (queue_length(tps_queue) == 0){
 		return -1;
 	}
-	queue_delete(tps_queue, (void*)current_thread);
+	if (queue_iterate(tps_queue, find_item, (void*)current_thread, (void**)&node_to_destroy) == -1)
+	{
+		return -1;
+	}
+	queue_iterate(tps_queue, find_item, (void*)current_thread, (void**)&node_to_destroy);
+	queue_delete(tps_queue, (void*)node_to_destroy);
 	//are we missing something here?
-	free(current_thread);
+	free(node_to_destroy);
 	return 0; 
 }
 
 int tps_read(size_t offset, size_t length, char *buffer)
 {
-	tps_node_t tps_read;
-	enter_critical_section();
-	//iterate through the queue, find the thread
-	queue_iterate(tps_queue, find_item, (void*)pthread_self(), (void**)&tps_read);
+	// tps_node_t tps_read;
+	// enter_critical_section();
+	// //iterate through the queue, find the thread
+	// queue_iterate(tps_queue, find_item, (void*)pthread_self(), (void**)&tps_read);
 	return 0;
 
 }
@@ -115,6 +125,8 @@ int tps_write(size_t offset, size_t length, char *buffer)
 
 int tps_clone(pthread_t tid)
 {
+	// void *data new_mmap;
+	// new_mmap = mmap
 	return 0;
 	/* TODO: Phase 2 */
 }
