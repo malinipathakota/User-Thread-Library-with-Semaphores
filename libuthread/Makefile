@@ -13,5 +13,4 @@ libuthread.a: $(objs)
 	$(Q)$(CC) $(CFLAGS) -c -o $@ $< $(DEPFLAGS)
 
 clean:
-	rm -f *.o *.a *.d *.gch
-	$(Q)rm -f $(targets) $(objs) $(deps)
+	$(Q)rm -rf tps.o sem.o $(deps) $(targets)
