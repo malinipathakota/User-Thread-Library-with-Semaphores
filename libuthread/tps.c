@@ -95,6 +95,7 @@ int tps_create(void) {
 	node->page->mmap_address = mmap(NULL, TPS_SIZE, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	node->page->count = 1;
 	queue_enqueue(tps_queue, node);
+	return 0;
 }
 
 int tps_destroy(void) {
