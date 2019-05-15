@@ -117,7 +117,7 @@ int tps_destroy(void) {
 }
 
 int check_fail(tps_node_t node, size_t offset, size_t length, char *buffer) {
-	if(node == NULL || buffer == NULL || offset < 0 || length < 0) {
+	if(node == NULL || offset < 0 || length < 0 || buffer == NULL) {
 		return -1;
 	}
 	if(length + offset > TPS_SIZE) {
@@ -148,19 +148,17 @@ int tps_write(size_t offset, size_t length, char *buffer) {
 	if(check_fail(node, offset, length, buffer) == -1) {
 		return -1;
 	}
-	else {
-		if(node->page->count >= 0) {
-			tps_page_t thispage = malloc(sizeof(struct tps_page));
-			thispage->mmap_address = mmap(NULL, TPS_SIZE, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-			thispage->count = 1;
-			mprotect(thispage->mmap_address, TPS_SIZE, PROT_WRITE);
-			mprotect(node->page->mmap_address, TPS_SIZE, PROT_READ);
-			memcpy(thispage->mmap_address, node->page->mmap_address, TPS_SIZE);
-			mprotect(thispage->mmap_address, TPS_SIZE, PROT_NONE);
-			mprotect(node->page->mmap_address, TPS_SIZE, PROT_NONE);
-			node->page->count = node->page->count - 1;
-			node->page = thispage;
-		}
+	if(node->page->count >= 0) {
+		tps_page_t thispage = malloc(sizeof(struct tps_page));
+		thispage->count = 1;
+		thispage->mmap_address = mmap(NULL, TPS_SIZE, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+		mprotect(thispage->mmap_address, TPS_SIZE, PROT_WRITE);
+		mprotect(node->page->mmap_address, TPS_SIZE, PROT_READ);
+		memcpy(thispage->mmap_address, node->page->mmap_address, TPS_SIZE);
+		mprotect(thispage->mmap_address, TPS_SIZE, PROT_NONE);
+		mprotect(node->page->mmap_address, TPS_SIZE, PROT_NONE);
+		node->page->count = node->page->count - 1;
+		node->page = thispage;
 	}
 	mprotect(node->page->mmap_address, TPS_SIZE, PROT_WRITE);
 	memcpy(node->page->mmap_address + offset, buffer, length);
