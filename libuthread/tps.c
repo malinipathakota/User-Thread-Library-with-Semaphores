@@ -12,37 +12,48 @@
 #include "thread.h"
 #include "tps.h"
 
+typedef enum {false, true} bool;
 
-struct tps_node
-{
-	pthread_t thread;
-	void* memory_page;
+struct tps_page {
+	void *mmap_address;
+	int count;
 };
+typedef struct tps_page* tps_page_t;
 
+struct tps_node {
+	void *memory_page;
+	pthread_t thread;
+	size_t length;
+	tps_page_t page;
+};
 typedef struct tps_node* tps_node_t;
 bool initialized = false;
 queue_t tps_queue;
 
-static int find_item(void *data, void *arg)
-{
+static int find_item(void *data, void *arg) {
     tps_node_t node = (tps_node_t)data;
 	pthread_t thread = (pthread_t)arg;
-    if (node->thread == thread)
-	{
+    if(node->thread == thread) {
 		 return 1;
 	} 
     return 0;
 }
 
-static void segv_handler(int sig, siginfo_t *si, void *context)
-{
+static int find_queue(void *data, void *arg) {
+	tps_node_t node = (tps_node_t)data;
+	pthread_t thread = *(pthread_t *)arg;
+	if(node->thread == thread) {
+		 return 1;
+	} 
+	return 0;
+}
+
+static void segv_handler(int sig, siginfo_t *si, void *context) {
 	void *p_fault = (void*)((uintptr_t)si->si_addr & ~(TPS_SIZE - 1));
 	tps_node_t matched_node;
-	//iterate through TPS areas and find if p_fault matches one of them
 	queue_iterate(tps_queue, find_item, p_fault, (void**)&matched_node);
 
-	if(matched_node != NULL)
-	{
+	if(matched_node != NULL) {
 		fprintf(stderr, "TPS protection error!\n");
 	}
 	signal(SIGSEGV, SIG_DFL);
@@ -50,18 +61,15 @@ static void segv_handler(int sig, siginfo_t *si, void *context)
 	raise(sig);
 }
 
-int tps_init(int segv)
-{
-	if(initialized == true)
-	{
+int tps_init(int segv) {
+	if(initialized == true) {
 		return -1;
 	}
 
 	tps_queue = queue_create();
 	initialized = true;
 
-	if(segv)
-	{
+	if(segv) {
 		struct sigaction sa;
 		sigemptyset(&sa.sa_mask);
 		sa.sa_flags = SA_SIGINFO;
@@ -72,62 +80,116 @@ int tps_init(int segv)
 	return 0;
 }
 
-int tps_create(void)
-{
-	//add error cases
-	//if already created return -1
-	//
-	tps_node_t new_node = (tps_node_t)malloc(sizeof(struct tps_node));
-	if(new_node == NULL)
-	{
+int tps_create(void) {
+	tps_node_t node = NULL;
+	queue_iterate(tps_queue, find_queue, (void *)pthread_self(), (void **)&node);
+	if(node != NULL) {
 		return -1;
 	}
-	new_node->thread = pthread_self();
-	new_node->memory_page = mmap(NULL, TPS_SIZE, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1 , 0);
-	queue_enqueue(tps_queue, (void*)new_node);
-	return 0;
+
+	node = malloc(sizeof(struct tps_node));
+	tps_page_t page = malloc(sizeof(struct tps_page));
+
+	node->thread = pthread_self();
+	node->page = page;
+	node->page->mmap_address = mmap(NULL, TPS_SIZE, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	node->page->count = 1;
+	queue_enqueue(tps_queue, node);
 }
 
-int tps_destroy(void)
-{
-	//add error cases
-	tps_node_t node_to_destroy;
-	pthread_t current_thread = pthread_self();
-	if (queue_length(tps_queue) == 0){
+int tps_destroy(void) {
+	tps_node_t node = NULL;
+	queue_iterate(tps_queue, find_queue, (void *)pthread_self(), (void **)&node);
+	if(node == NULL) {
 		return -1;
 	}
-	if (queue_iterate(tps_queue, find_item, (void*)current_thread, (void**)&node_to_destroy) == -1)
-	{
+	if(node->page->count > 1) {
+		node->page->count = node->page->count - 1;
+	}
+	else {
+		if(node->page->count <= 1 || !munmap(node->page->mmap_address, TPS_SIZE)) {
+			free(node->page);
+		}
+	}
+	free(node);
+	return 0;
+}
+
+int check_fail(tps_node_t node, size_t offset, size_t length, char *buffer) {
+	if(node == NULL || buffer == NULL || offset < 0 || length < 0) {
 		return -1;
 	}
-	queue_iterate(tps_queue, find_item, (void*)current_thread, (void**)&node_to_destroy);
-	queue_delete(tps_queue, (void*)node_to_destroy);
-	//are we missing something here?
-	free(node_to_destroy);
-	return 0; 
-}
-
-int tps_read(size_t offset, size_t length, char *buffer)
-{
-	// tps_node_t tps_read;
-	// enter_critical_section();
-	// //iterate through the queue, find the thread
-	// queue_iterate(tps_queue, find_item, (void*)pthread_self(), (void**)&tps_read);
+	if(length + offset > TPS_SIZE) {
+		return -1;
+	}
+	if(mprotect(node->page->mmap_address, TPS_SIZE, PROT_READ) == -1) {
+		return -1;
+	}
 	return 0;
-
 }
 
-int tps_write(size_t offset, size_t length, char *buffer)
-{
+int tps_read(size_t offset, size_t length, char *buffer) {
+	tps_node_t node = NULL;
+	queue_iterate(tps_queue, find_queue, (void *)pthread_self(), (void **)&node);
+
+	if(check_fail(node, offset, length, buffer) != -1) {
+		memcpy(buffer, node->page->mmap_address + offset, length);
+		mprotect(node->page->mmap_address, TPS_SIZE, PROT_NONE);
+		return 0;
+	}
+	return -1;
+}
+
+int tps_write(size_t offset, size_t length, char *buffer) {
+	tps_node_t node = NULL;
+	queue_iterate(tps_queue, find_queue, (void *)pthread_self(), (void **)&node);
+
+	if(check_fail(node, offset, length, buffer) == -1) {
+		return -1;
+	}
+	else {
+		if(node->page->count >= 0) {
+			tps_page_t thispage = malloc(sizeof(struct tps_page));
+			thispage->mmap_address = mmap(NULL, TPS_SIZE, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+			thispage->count = 1;
+			mprotect(thispage->mmap_address, TPS_SIZE, PROT_WRITE);
+			mprotect(node->page->mmap_address, TPS_SIZE, PROT_READ);
+			memcpy(thispage->mmap_address, node->page->mmap_address, TPS_SIZE);
+			mprotect(thispage->mmap_address, TPS_SIZE, PROT_NONE);
+			mprotect(node->page->mmap_address, TPS_SIZE, PROT_NONE);
+			node->page->count = node->page->count - 1;
+			node->page = thispage;
+		}
+	}
+	mprotect(node->page->mmap_address, TPS_SIZE, PROT_WRITE);
+	memcpy(node->page->mmap_address + offset, buffer, length);
+	mprotect(node->page->mmap_address, TPS_SIZE, PROT_NONE);
 	return 0;
-	/* TODO: Phase 2 */
 }
 
-int tps_clone(pthread_t tid)
-{
-	// void *data new_mmap;
-	// new_mmap = mmap
-	return 0;
-	/* TODO: Phase 2 */
-}
+int tps_clone(pthread_t tid) {
+	tps_node_t original = NULL;
+	queue_iterate(tps_queue, find_queue, (void *)pthread_self(), (void **)&original);
+	tps_node_t node = NULL;
+	queue_iterate(tps_queue, find_queue, (void *)tid, (void **)&node);
 
+	if (original != NULL || node == NULL) {
+		return -1;
+	}
+	else {
+		tps_node_t newnode = NULL;
+		queue_iterate(tps_queue, find_queue, (void *)pthread_self(), (void **)&newnode);
+		if (newnode != NULL) {
+			return -1;
+		}
+		newnode = malloc(sizeof(struct tps_node));
+		newnode->page = node->page;
+		newnode->thread = pthread_self();
+		queue_enqueue(tps_queue, newnode);
+
+		original = NULL;
+		queue_iterate(tps_queue, find_queue, (void *)pthread_self(), (void **)&original);
+		original->page->count = original->page->count + 1;
+		return 0;
+	}
+}
