@@ -25,21 +25,21 @@ external thread library in order to enter and exit critical sections.
 
 Our functions consist of:
 
-1. Create
+1. Create<br/>
 The create function initializes a queue, along with the count which is the 
 size of the queue.
 
-2. Destroy
+2. Destroy<br/>
 The destroy function deallocates the semaphore. This is done by first making
 sure that the queue is empty before we destroy it.
 
-3. Sem up
+3. Sem up<br/>
 Our sem up function releases a semaphore and all of its resources. This
 is achieved by unblocking the thread, along with increasing the size.  
 This is all done after entering the critical section. This ensures
 mutual exclusion with other threads.
 
-4. Sem down
+4. Sem down<br/>
 Our sem down function takes resources from the semaphore. When we take an
 unavailabe semaphore, the calling thread will be blocked until the semaphore
 is available again. This was achived by enqueing the thread into the queue,
@@ -48,7 +48,7 @@ this all takes place in the critical section to ensure
 mutual exclusion with other threads.
 ts size
 
-5. Get value
+5. Get value<br/>
 Our get value function simply, gets the value of the size of our queue. If 
 the size is equal to zero, we take the absolute value of it. 
 
@@ -61,14 +61,14 @@ of 4096 bytes for each thread that requires it. It also makes
 use of critical sections, similar to our semamphore API.
 
 We have multiple main functions for this phase that consist of:
-1. tps init
+1. tps init<br/>
 Our init function creates our queue, and sets up our handler that will catch 
 segmentation faults. This handler will get the tps of the specific address 
 that causes the segmentation fault. It will also display an error message 
 when there is a protection error. This function can only been called once, 
 if not there will be an error. 
 
-2. tps create
+2. tps create<br/>
 The create function creates a TPS area and associates it with the current 
 thread. It does this by allocating space for both instances of the two structs 
 mentioned previously, and populates them. The memory page is populated using 
@@ -76,11 +76,11 @@ mmap(), making sure that there is no read or write permission by default.
 Finally, we enqueue our instance of tps_node, which holds the thread, length 
 and the memory map into the queue we initialized earlier. 
 
-3. tps destroy 
+3. tps destroy<br/> 
 This function destroys the tps area in association with the current thread. It 
 finds the thread from the queue, and frees its memory.
 
-4. tps read
+4. tps read<br/>
 This function reads a specified number of bytes of data from the current 
 thread's TPS. We have a buffer and offsset so the function wont exceed the 
 bounds. A helper function check_fail() was used to check for possible errors 
@@ -91,7 +91,7 @@ copied this content into our parameter buffer. We also made use of mprotect(),
 which protects the memory and makes sure it cannot be accessed at all, by 
 using PROT_NONE as our parameter.
 
-5. tps write
+5. tps write<br/>
 This function writes what is in our buffer into the current TPS at a specific
 byte @offset which is given to us. Like we did in tps read, we call our
 check_fail function to check for any errors, if there isnt any
@@ -105,7 +105,7 @@ memory page that the thread can write to. This prevents it from overwriting
 another threads memory. We did this by allocating space for a new memory page,
 make a copy of this page and set the current threads page to this copy. 
 
-6. tps clone
+6. tps clone<br/>
 In our clone function, we clone the threads TPS. We did this in two phases. 
 Before cloning, we first made sure that the node being copied exists in the
 queue using queue_iterate(). In the first phase, we copied from the TPS 
@@ -115,21 +115,21 @@ memory page, and increase the reference counter to show that it is being
 shared. 
 
 Our helper functions consist of:
-1. find item
+1. find item<br/>
 Our find item function will be used when we call queue_iterate(). 
 It checks for matching threads. This is only used in our segv handler.
 
-2. find queue
+2. find queue<br/>
 This is another find function that will be used with queue_iterate function
 and is used throughout the program to find matching threads.
 
-3. segv_handler
+3. segv_handler<br/>
 Our segv handler like mentioned previously, will catch segmentation faults.
 This handler will get the tps of the specific address that causes the 
 segmentation fault. It will also display an error message when there is a 
 protection error.
 
-4. check fail
+4. check fail<br/>
 As mentioned previously, our check fail function checks for errors regarding 
 the offset, length or if our buffer is null. This function is used when we 
 call tps read, or tps write. 
