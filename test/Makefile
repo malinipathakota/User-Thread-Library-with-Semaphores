@@ -3,7 +3,10 @@ programs := \
 	sem_count.x \
 	sem_buffer.x \
 	sem_prime.x \
-	tps.x
+	tps.x \
+	tps_extra_tests.x \
+	tps_testsuite.x \
+	
 
 # User-level thread library
 UTHREADLIB := libuthread
@@ -62,6 +65,8 @@ $(libuthread):
 	$(Q)$(MAKE) V=$(V) D=$(D) -C $(UTHREADPATH)
 
 # Generic rule for linking final applications
+tps_testsuite.x: LDFLAGS += -Wl,--wrap=mmap
+
 %.x: %.o $(libuthread)
 	@echo "LD	$@"
 	$(Q)$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)

@@ -114,9 +114,11 @@ counter to show that it is being shared.
 Our helper functions consist of:
 1. find item
 Our find item function will be used when we call queue_iterate(). 
-It checks for matching threads. 
+It checks for matching threads. This is only used in our segv handler.
 
 2. find queue
+This is another find function that will be used with queue iterate function
+and is used throughout the program to find matching threads.
 
 3. segv_handler
 Our segv handler like mentioned previously, will catch segmentation faults.
@@ -131,7 +133,13 @@ call tps read, or tps write.
 
 
 ## Testing
-To test for these phases, we used the testers that were provided. These 
-consist of sem_buffer.c, sem_count.c, sem_prime.c and tps.c. These testers 
-tested for basic functionality of our program. 
+To test for these phases, we used the testers that were provided as as well as 
+our own testers. These consist of sem_buffer.c, sem_count.c, sem_prime.c and 
+tps.c. These testers tested for basic functionality of our program. 
+The testers we implemented test for all the edge cases of errors.
+We have a multitude of tests to check for different possiblities including
+checking for out of bounds with read and write, reading and writing without 
+creating a tps, destroying without creating, and reading without a buffer.
+Finally, we caused an intentional TPS protection error to see if there would
+be a segmentation fault.
 

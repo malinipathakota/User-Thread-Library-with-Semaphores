@@ -12,6 +12,7 @@
 #include "thread.h"
 #include "tps.h"
 
+
 typedef enum {false, true} bool;
 
 struct tps_page {
@@ -27,8 +28,12 @@ struct tps_node {
 	tps_page_t page;
 };
 typedef struct tps_node* tps_node_t;
+//END OF STRUCT DEFINITION----------
+
 bool initialized = false;
 queue_t tps_queue;
+
+//END OF GLOBAL VARIABLES------------
 
 static int find_item(void *data, void *arg) {
     tps_node_t node = (tps_node_t)data;
@@ -48,6 +53,8 @@ static int find_queue(void *data, void *arg) {
 	return 0;
 }
 
+/*checks for segmentation faults and protection errors */
+
 static void segv_handler(int sig, siginfo_t *si, void *context) {
 	void *p_fault = (void*)((uintptr_t)si->si_addr & ~(TPS_SIZE - 1));
 	tps_node_t matched_node;
@@ -60,6 +67,9 @@ static void segv_handler(int sig, siginfo_t *si, void *context) {
 	signal(SIGBUS, SIG_DFL);
 	raise(sig);
 }
+
+
+/*initializes the queue and sets up handler*/
 
 int tps_init(int segv) {
 	if(initialized == true) {
@@ -80,13 +90,15 @@ int tps_init(int segv) {
 	return 0;
 }
 
+//creates a new memory page to the associated thread
+
 int tps_create(void) {
 	tps_node_t node = NULL;
+	//checks if current thread already has a tps
 	queue_iterate(tps_queue, find_queue, (void *)pthread_self(), (void **)&node);
 	if(node != NULL) {
 		return -1;
 	}
-
 	node = malloc(sizeof(struct tps_node));
 	tps_page_t page = malloc(sizeof(struct tps_page));
 
@@ -95,8 +107,11 @@ int tps_create(void) {
 	node->page->mmap_address = mmap(NULL, TPS_SIZE, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	node->page->count = 1;
 	queue_enqueue(tps_queue, node);
+
 	return 0;
 }
+
+//destroys the tps area 
 
 int tps_destroy(void) {
 	tps_node_t node = NULL;
@@ -115,6 +130,7 @@ int tps_destroy(void) {
 	free(node);
 	return 0;
 }
+//checks for edge cases when we read or write
 
 int check_fail(tps_node_t node, size_t offset, size_t length, char *buffer) {
 	if(node == NULL || offset < 0 || length < 0 || buffer == NULL) {
@@ -129,6 +145,8 @@ int check_fail(tps_node_t node, size_t offset, size_t length, char *buffer) {
 	return 0;
 }
 
+//reads from our memory page and puts it into @buffer
+
 int tps_read(size_t offset, size_t length, char *buffer) {
 	tps_node_t node = NULL;
 	queue_iterate(tps_queue, find_queue, (void *)pthread_self(), (void **)&node);
@@ -140,6 +158,8 @@ int tps_read(size_t offset, size_t length, char *buffer) {
 	}
 	return -1;
 }
+
+//write to our memory page with content in buffer
 
 int tps_write(size_t offset, size_t length, char *buffer) {
 	tps_node_t node = NULL;
@@ -165,6 +185,9 @@ int tps_write(size_t offset, size_t length, char *buffer) {
 	mprotect(node->page->mmap_address, TPS_SIZE, PROT_NONE);
 	return 0;
 }
+
+
+//clone @tids TPS
 
 int tps_clone(pthread_t tid) {
 	tps_node_t original = NULL;
