@@ -107,9 +107,12 @@ make a copy of this page and set the current threads page to this copy.
 
 6. tps clone
 In our clone function, we clone the threads TPS. We did this in two phases. 
-In the first phase, we copied directly from the TPS content. In the second 
-phase however we refer to the same memory page, and increase the reference 
-counter to show that it is being shared. 
+Before cloning, we first made sure that the node being copied exists in the
+queue using queue_iterate(). In the first phase, we copied from the TPS 
+content by creating a new tps node and directly copying the data and then 
+enqueuing this new node. In the second phase however we refer to the same 
+memory page, and increase the reference counter to show that it is being 
+shared. 
 
 Our helper functions consist of:
 1. find item
@@ -117,7 +120,7 @@ Our find item function will be used when we call queue_iterate().
 It checks for matching threads. This is only used in our segv handler.
 
 2. find queue
-This is another find function that will be used with queue iterate function
+This is another find function that will be used with queue_iterate function
 and is used throughout the program to find matching threads.
 
 3. segv_handler
